@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VAST 2018 MC2</title>
+    <style type="text/css">
+      
+      .top{
+        text-align: center;
+      }
+
+      .top h2{
+        font-size: 30px;
+      }
+
+      .top h3{
+        padding-bottom: 20px;
+      }
+      .top span{
+        padding-left: 10px;
+        padding-right: 10px;
+        font-size: 30px;
+      }
+      
+      .container{
+        display: flex;
+        justify-content: center;
+      }
+
+      .map-graph{
+        width: 40%;
+        text-align: center;
+        border: 1px solid black;
+      }
+
+      .map-graph svg{
+        background-image: url('map.jpg');
+        background-size: contain;
+        background-repeat: no-repeat;
+      }
+
+      .bar-graph{
+        width: 40%;
+        text-align: center;
+        border: 1px solid black;
+      }
+
+      .xAxis,
+      .yAxis{
+        font-size: 20px;
+      }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  </head>
+  <body>
+    <div class="top">
+      <h1>VAST Challenge 2018 MC2</h1>
+      <h3>By: Anthony, Janvi, Mitchell, and Rocco</h3>
+
+      <h2>Methylosmoline per Location per Month</h2>
+      <span class = "month"></span>
+      <span class = "year"></span>
+    </div>
+    <div class="container">
+      <div class = "map-graph">
+        <h1>Map Graph</h1>
+      </div>
+
+      <div class = "bar-graph">
+        <h1>Bar Graph</h1>
+      </div>
+    </div>
+    
+    <script type="text/javascript">
+      var margin = {top: 0, right: 60, bottom: 40, left: 120};
+      //starting width and height for svgs
+      var width = 1000;
+      var height = 1000;
+
+      //map of coord of each town on the imgage to the town name 
+      var map_positions = new Map([
+        [[285,20], "Sakda"],
+        [[360,110], "Kannika"],
+        [[165,125], "Tansanee"],
+        [[53,180], "Decha"],
+        [[335,242], "Chai"],
+        [[166,257], "Somchair"],
+        [[409,279], "Busarakhan"],
+        [[219,327], "Achara"],
+        [[411,337], "Kohsoom"],
+        [[287,414], "Boonsri"]
+      ]);
+
+      //year we start on
+      var startYear = 2014;
+
+      //year we restart on
+      var endYear = 2016;
+
+      //current year
+      var year = startYear;
+
+      //month we start on 
+      var startMonth = 1;
+
+      //month we restart on
+      var endMonth = 12;
+
+      //current month
+      var month = startMonth;
+
+      //mearsure that is being displayed
+      var measure = "Methylosmoline";
+
+      //display the current year and month
+      d3.select(".month").text("Month: " + month);
+      d3.select(".year").text("Year: " + year);
+
+      //scaller for the x coord in the scatter plot
+      var xScatter = d3.scaleLinear()
+      .domain([0, 500])
+      .range([0, width]);
+
+      //scaller for the y coord in the scatter plot
+      var yScatter = d3.scaleLinear()
+        .domain([0, 500])
+        .range([height, 0]);
+
+      //svg for the scatter plot
+      var scatter = d3.select(".map-graph")
+        .append("svg")
+        .attr("preserveAspectRatio", "xMinYMin meet")
+        .attr("viewBox", `0 0 ${width} ${height}`);
+
+      //svg for the bar chart
+      var bars = d3.select(".bar-graph")
+        .append("svg")
+        .attr("preserveAspectRatio", "xMinYMin meet")
+        .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+        .append("g")
+        .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");;
+      
+      //read in the water sensor data from the csv file hosted on github
+      d3.csv("https://raw.githubusercontent.com/MitchellWest2487/Vast2018/main/data.csv").then(function(data){
+
+        //set of all the years
+        var years = new Set(data.map(d => d.year));
+        
+        //set of all the months
+        var months = new Set(data.map(d => d.month));
+
+        //set of all locations
+        var locations = new Set(data.map(d => d.location));
+
+        //set of all measures
+        var measures = new Set(data.map(d => d.measure));
+
+        //a map of {location : value} for the values of the measure over the specified time
+        var dataset = data_to_map(data, locations);
+
+        //scaller for the x coord in the bar chart
+        var xBar = d3.scaleLinear()
+          .domain([0, d3.max(Array.from(dataset.values()))])
+          .range([ 0, width]);
+
+        //scaller for the y coord in the bar chart
+        var yBar = d3.scaleBand()
+          .range([ 0, height])
+          .domain(Array.from(dataset.keys()))
+          .padding(.1);
+
+        //scaller for the r of the circles in the scatter plot
+        var rScale = d3.scaleLinear()
+          .domain([0, d3.max(Array.from(dataset.values()))])
+          .range([5, 20]);
+
+        //plot the circles on each location and scale to the data
+        scatter.selectAll("circle")
+          .data(Array.from(map_positions.keys()))
+          .enter()
+          .append("circle")
+          .attr("fill", "red")
+          .attr("cx", function(d) {
+            return xScatter(d[0]);
+          })
+          .attr("cy", function(d) {
+            return yScatter(d[1]);
+          })
+          .attr("r", function(d){
+            val = dataset.get(map_positions.get(d));
+            if(val == 0){
+              return 0;
+            }
+            return rScale(val)
+          });
+
+        //create the x-axis for the bar chart
+        bars.append("g")
+          .attr("transform", `translate(0, ${height})`)
+          .call(d3.axisBottom(xBar))
+          .attr("class", "xAxis")
+          .selectAll("text")
+          .attr("transform", "translate(-10,0)rotate(-45)")
+          .style("text-anchor", "end")
+
+
+        //create the y-axis for the bar chart
+        bars.append("g")
+          .call(d3.axisLeft(yBar))
+          .attr("class", "yAxis");
+
+        //create the bars of the bar chart
+        bars.selectAll("bar")
+          .data(Array.from(dataset, ([key, value]) => ([key, value])))
+          .enter()
+          .append("rect")
+          .attr("x", xBar(0))
+          .attr("y", function(d) { return yBar(d[0]); })
+          .attr("width", function(d) { return xBar(d[1]); })
+          .attr("height", yBar.bandwidth())
+          .attr("fill", "#69b3a2");
+
+        //adds labels to the bar chart
+        bars.selectAll("bar")
+          .data(Array.from(dataset, ([key, value]) => ([key, value])))
+          .enter()
+          .append("text")
+          .text(function(d){
+            return d[1];
+          })
+          .attr("x", function(d) { return xBar(d[1]) - 60;})
+          .attr("y", function(d) { return yBar(d[0]) + 50;})
+          .attr("class", "labels")
+          .style("font-size", 25);
+
+        //asynce function that updates the data and refreshes the charts every 1000ms
+        async function updateGraph(){
+          
+          //update the current month and year of the data being displayed
+          if(month == endMonth){
+            if(year == endYear){
+              year = startYear;
+            }else{
+              year++;
+            }
+            month = startMonth;
+          }
+          else{
+            month++;
+          }
+
+          //update the dataset with the new data
+          dataset = data_to_map(data, locations);
+
+          //update the month and year being displayed
+          d3.select(".month").text("Month: " + month);
+          d3.select(".year").text("Year: " + year);
+
+          //update the scale of the circles and bars in the charts
+          rScale.domain([0, d3.max(Array.from(dataset.values()))]);
+          xBar.domain([0, d3.max(Array.from(dataset.values()))]);
+          yBar.domain(Array.from(dataset.keys()));
+          
+          //update x axis
+          bars.selectAll("g .xAxis")
+            .transition()
+            .duration(1000)
+            .call(d3.axisBottom(xBar))
+            .selectAll("text")
+            .attr("transform", "translate(-10,0)rotate(-45)")
+            .style("text-anchor", "end")
+            .style("font-size", 20);
+
+          //update y axis
+          bars.selectAll("g .yAxis")
+            .transition()
+            .duration(1000)
+            .call(d3.axisLeft(yBar))
+
+          //update labels
+          bars.selectAll(".labels")
+            .data(Array.from(dataset, ([key, value]) => ([key, value])))
+            .transition()
+            .duration(1000)
+            .ease(d3.easeQuad)
+            .attr("x", function(d) { return xBar(d[1]);})
+            .attr("y", function(d) { return yBar(d[0]) + 50;})
+            .tween("text", function(d) {
+              var i = d3.interpolate(this.textContent, d[1]);
+              return function(t) {
+                d3.select(this).text(i(t).toPrecision(3));
+              };
+            });
+
+          //update the bars in the bar chart
+          bars.selectAll("rect")
+            .data(Array.from(dataset, ([key, value]) => ([key, value])))
+            .transition()
+            .duration(1000)
+            .ease(d3.easeQuad)
+            .attr("y",  d => yBar(d[0]))
+            .attr("width", d => xBar(d[1]));
+
+
+          //update the data in the scatter plot
+          await scatter.selectAll("circle")
+            .data(Array.from(map_positions.keys()))
+            .transition()
+            .duration(2000)
+            .attr("r", function(d){
+            val = dataset.get(map_positions.get(d));
+            if(val == 0){
+              return 0;
+            }
+            return rScale(val);
+          })
+          .end();
+
+          //repeat 
+          updateGraph();
+
+        }
+
+        //start updating the graphs
+        updateGraph();
+      });
+
+      function data_to_map(data, locations){
+        //generates map of {location : value} where is the total amount 
+        //of a measure found at that location
+        var dataMap = new Map(data.filter(d => d.year == year && d.month == month && d.measure == measure)
+          .sort(function(a,b){return (b.value - a.value)})
+          .map(d => [d.location, parseFloat(d.value)]));
+        
+        //adds locations that don't have any measure for that time period 
+        locations.forEach(l => {
+          if(!dataMap.has(l)){
+            dataMap.set(l,0);
+          }
+        });
+
+        return dataMap;
+      }
+    </script>
+  </body>
+</html>
